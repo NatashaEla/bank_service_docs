@@ -1,0 +1,204 @@
+openapi: 3.0.3
+info:
+  title: API для подачи налоговых вычетов
+  description: API предназначен для автоматизации подачи налоговых заявлений, включая передачу деклараций и документов в ФНС, а также получение статусов обработки заявлений.
+  version: "1.0.0"
+  contact:
+    name: Техническая поддержка
+    email: support@monetochka-bank.ru
+
+servers:
+  - url: https://api.monetochka-bank.ru/v1
+    description: Основной сервер API
+
+paths:
+  /auth/login:
+    post:
+      summary: Авторизация клиента
+      description: Авторизует клиента в системе и возвращает токен доступа.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  description: Логин клиента
+                password:
+                  type: string
+                  description: Пароль клиента
+              required:
+                - username
+                - password
+      responses:
+        "200":
+          description: Успешная авторизация
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Токен для авторизации
+        "401":
+          description: Неверный логин или пароль
+
+  /declaration/create:
+    post:
+      summary: Формирование декларации
+      description: Создает декларацию для подачи заявки на налоговый вычет.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                  description: Уникальный идентификатор клиента
+                income_data:
+                  type: object
+                  properties:
+                    source:
+                      type: string
+                      description: Источник дохода (например, работодатель)
+                    amount:
+                      type: number
+                      description: Сумма дохода
+                documents:
+                  type: array
+                  items:
+                    type: string
+                    description: Документы в Base64
+              required:
+                - client_id
+                - income_data
+      responses:
+        "200":
+          description: Декларация успешно создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  declaration_id:
+                    type: string
+                    description: Уникальный идентификатор декларации
+                  message:
+                    type: string
+                    description: Сообщение об успехе
+        "400":
+          description: Некорректные данные
+        "403":
+          description: Клиент не имеет права на налоговый вычет
+
+  /declaration/sign:
+    post:
+      summary: Подписание декларации
+      description: Подписывает декларацию с использованием квалифицированной электронной подписи.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                declaration_id:
+                  type: string
+                  description: Идентификатор декларации
+                signature:
+                  type: string
+                  description: Электронная подпись в Base64
+              required:
+                - declaration_id
+                - signature
+      responses:
+        "200":
+          description: Декларация успешно подписана
+        "400":
+          description: Недействительная подпись
+        "404":
+          description: Декларация не найдена
+
+  /fns/submit:
+    post:
+      summary: Отправка декларации
+      description: Отправляет подписанные данные декларации в ФНС.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                declaration_id:
+                  type: string
+                  description: Идентификатор декларации
+                encoded_data:
+                  type: string
+                  description: Декларация в формате Base64
+              required:
+                - declaration_id
+                - encoded_data
+      responses:
+        "200":
+          description: Заявка успешно отправлена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id:
+                    type: string
+                    description: Уникальный идентификатор заявки
+                  message:
+                    type: string
+                    description: Сообщение об успехе
+        "500":
+          description: Проблема на стороне ФНС
+
+  /fns/status/{request_id}:
+    get:
+      summary: Проверка статуса заявки
+      description: Получает текущий статус обработки заявки от ФНС.
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          description: Идентификатор заявки
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Успешный запрос статуса
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Статус обработки (например, "обработано")
+                  message:
+                    type: string
+                    description: Дополнительная информация
+                  refund_date:
+                    type: string
+                    format: date
+                    description: Дата возврата средств
+        "404":
+          description: Заявка не найдена
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
